@@ -20,6 +20,22 @@ class ModelTests(unittest.TestCase):
             self.assertEqual((g['assessed'], g['missing'], g['pollution_rank']), (0, 9, None))
         self.assertEqual(set(durga['testing_order'][:2]), {g['site'] for g in missing})
 
+    def test_uncertain_identity_covers_low_not_only_medium(self):
+        header = ('year,festival,site,phase,parameter,value,flag,source_page,'
+                  'unit_assumed,site_match_confidence\n')
+
+        def flagged(confidence):
+            data = analyze(header + f'2026,Ganesh,A kund,pre,BOD,3,,,mg/l,{confidence}\n')
+            return data['model']['views']['all|all']['sites'][0]['identity_uncertain']
+
+        # 'low' is less certain than 'medium' and must never read as safe.
+        self.assertTrue(flagged('low'))
+        self.assertTrue(flagged('Low'))
+        self.assertTrue(flagged('medium'))
+        self.assertFalse(flagged('high'))
+        # Saying nothing is not a claim of certainty either way.
+        self.assertFalse(flagged(''))
+
     def test_no_lookahead_in_latest_evidence(self):
         data = analyze(as_csv([record(year='2023', site='A', value=''), record(year='2025', site='A'), record(year='2023', site='B')]))
         g = next(g for g in data['model']['views']['2023|Ganesh']['sites'] if g['site']=='A')

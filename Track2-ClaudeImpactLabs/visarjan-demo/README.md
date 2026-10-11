@@ -57,6 +57,8 @@ Required CSV columns: `year,festival,site,phase,parameter,value,flag,source_page
 
 Recommended optional columns: `water_body,unit_assumed,site_match_confidence,source_document`.
 
+- `site_match_confidence`: any stated value other than `high` marks the site's identity as uncertain, so `low` is never read as certain. Leaving it blank asserts nothing either way.
+
 - `phase`: `pre`, `during`, or `after`.
 - Core parameter names: `pH`, `Dissolved oxygen`, `BOD` (case variations normalised).
 - Oxygen and BOD must be in mg/l; pH is dimensionless. Blank units use the documented assumptions. No automatic unit conversion is performed.
@@ -71,7 +73,7 @@ Recommended optional columns: `water_body,unit_assumed,site_match_confidence,sou
 
 The app uses the supplied Bhopal CSV, its 2025 subset, the CPCB criteria CSV and the three original immersion PDFs. It reads the full Bhopal CSV to match source records even while displaying an upload. No extra public dataset or government connection is used.
 
-Measurements end in 2025 by default and do not establish current conditions. Units are assumed in the reports' extracted data. Total coliform is absent, and the metal measurements do not have Class B thresholds in the supplied criteria. The combined Rani Kamlapati / Kamla Park name may represent two locations. This warning is carried into briefs. No health effects, immersion permission, or future water quality are inferred. Hindi/English summaries use templates rather than an AI service.
+Measurements end in 2025 by default and do not establish current conditions. Units are assumed in the reports' extracted data. Total coliform is absent, and the metal measurements do not have Class B thresholds in the supplied criteria. The combined Rani Kamlapati / Kamla Park name may represent two locations. This warning is carried into the briefs and into both CSV exports, as `identity_needs_check`. No health effects, immersion permission, or future water quality are inferred. Hindi/English summaries use templates rather than an AI service.
 
 The app is intended for a local demonstration and officer review, not public multi-user hosting. It has no authentication, durable upload storage, GIS coordinates, forecasting, or validated intervention recommendations. Source data and reports retain their original ownership; the MIT licence covers this application's code.
 

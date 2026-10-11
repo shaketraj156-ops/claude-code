@@ -197,8 +197,11 @@ function renderEventContent() {
   if(activeTab==='evidence') {
     renderEvidence();$('evidence-parameter').onchange=renderEvidence;
     $('export-evidence').onclick=()=>{
-      const fields=['year','festival','site','water_body','phase','parameter','value','flag','source_page','unit_assumed','source_document'];
-      download('\ufeff'+[fields.map(csvCell).join(','),...readings.map(r=>fields.map(f=>csvCell(r[f]??'')).join(','))].join('\r\n'),'ghat-event-evidence.csv','text/csv;charset=utf-8');
+      // identity_needs_check travels with the rows, so a forwarded event CSV keeps the
+      // same site-identity caveat shown on screen and carried in the briefs.
+      const fields=['year','festival','site','water_body','phase','parameter','value','flag','source_page','unit_assumed','source_document','site_match_confidence'];
+      const uncertain=group().identity_uncertain?'yes':'no';
+      download('\ufeff'+[[...fields,'identity_needs_check'].map(csvCell).join(','),...readings.map(r=>[...fields.map(f=>csvCell(r[f]??'')),csvCell(uncertain)].join(','))].join('\r\n'),'ghat-event-evidence.csv','text/csv;charset=utf-8');
     };
   }
 }

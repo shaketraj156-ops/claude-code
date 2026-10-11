@@ -77,7 +77,10 @@ def build_model(rows, limits):
         metadata[site] = {
             'site_hi': next((r['site_hi'] for r in site_rows if r.get('site_hi')), ''),
             'water_body': next((r['water_body'] for r in site_rows if r.get('water_body')), 'Not supplied'),
-            'identity_uncertain': any(r.get('site_match_confidence') == 'medium' for r in site_rows),
+            # Anything stated but not 'high' is uncertain, so 'low' is never read as safe.
+            # An absent value means the source said nothing, which is not a claim either way.
+            'identity_uncertain': any((r.get('site_match_confidence') or '').strip().casefold()
+                                      not in ('', 'high') for r in site_rows),
         }
     views = {}
     for year in ['all', *years]:

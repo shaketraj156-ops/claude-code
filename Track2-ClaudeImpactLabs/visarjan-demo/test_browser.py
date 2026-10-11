@@ -240,6 +240,20 @@ class BrowserTests(unittest.TestCase):
         expect(self.page.locator('#event')).to_have_value('2025|Durga')
         self.assertGreater(self.page.locator('#core-table td.bad').count(), 0)
 
+    def test_event_csv_carries_the_site_identity_warning(self):
+        self.page.goto(self.url)
+        expect(self.page.locator('#loading')).to_contain_text('1,524 readings')
+        self.page.get_by_role('button', name='Rani Kamlapati', exact=False).click()
+        expect(self.page.locator('#detail > .warning')).to_contain_text('Confirm this site identity')
+        self.page.locator('#tab-evidence').click()
+        with self.page.expect_download() as download:
+            self.page.locator('#export-evidence').click()
+        rows = list(csv.DictReader(io.StringIO(download.value.path().read_text(encoding='utf-8-sig'))))
+        self.assertTrue(rows)
+        # The caveat on screen must survive into the file the officer forwards.
+        self.assertTrue(all(r['identity_needs_check'] == 'yes' for r in rows))
+        self.assertTrue(any(r['site_match_confidence'] == 'medium' for r in rows))
+
     def test_csv_formula_injection_is_escaped(self):
         self.upload(as_csv([record(site='=SUM(1,2)', value=8)]))
         expect(self.page.locator('#loading')).to_contain_text('Uploaded CSV')
