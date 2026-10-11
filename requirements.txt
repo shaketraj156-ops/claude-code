@@ -1,0 +1,6 @@
+pandas
+pytest
+streamlit
+folium
+streamlit-folium
+anthropic
