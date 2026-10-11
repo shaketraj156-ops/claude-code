@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/index?p=/api/:path*" },
+    { "source": "/:file(data|sample|template).csv", "destination": "/api/index?p=/:file.csv" },
+    { "source": "/reports/:name", "destination": "/resources/:name" }
+  ],
+  "headers": [
+    { "source": "/resources/(.*)", "headers": [ { "key": "Content-Type", "value": "application/pdf" }, { "key": "Content-Disposition", "value": "inline" } ] }
+  ]
+}

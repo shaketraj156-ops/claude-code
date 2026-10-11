@@ -8,15 +8,18 @@ import urllib.request
 from functools import lru_cache
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 from analysis import build_model, METHOD_VERSION
 
 ROOT = Path(__file__).resolve().parent
 WORKSPACE = ROOT.parent
-
-HOST = os.environ.get('HOST', '0.0.0.0')
-PORT = int(os.environ.get('PORT', 8765))
-
+# The repository bundles the track's data/ and resources/ folders. The original workspace
+# layout (../impactdata and ../dataa) is kept as a fallback so older checkouts still run.
+DATA_DIR = ROOT / 'data' if (ROOT / 'data' / 'bhopal_ghats_2023_2025.csv').exists() else WORKSPACE / 'impactdata'
+REPORT_DIR = ROOT / 'resources' if (ROOT / 'resources').is_dir() else WORKSPACE / 'dataa'
+LOCATIONS = ROOT / 'ghat_locations.csv'
+# Hosting platforms (Railway, Render, Fly) inject PORT and need the server bound to 0.0.0.0.
+HOST, PORT = os.environ.get('HOST', '127.0.0.1'), int(os.environ.get('PORT', '8765'))
 REPORTS = {2023: 'Idol_immer._Report_23_CPCB.pdf', 2024: 'Ganesh_and_Durga_visarjan_report-2024.pdf', 2025: 'Ganesh_and_Durga_visarjan_report-2025.pdf'}
 PARAMETERS = {'pH', 'Dissolved oxygen', 'BOD'}
 PARAMETER_NAMES = {p.casefold(): p for p in PARAMETERS}
@@ -33,8 +36,26 @@ def signature(row):
 
 @lru_cache(maxsize=1)
 def bundled_sources():
-    with (WORKSPACE / 'impactdata/bhopal_ghats_2023_2025.csv').open(encoding='utf-8-sig', newline='') as source:
+    with (DATA_DIR / 'bhopal_ghats_2023_2025.csv').open(encoding='utf-8-sig', newline='') as source:
         return {signature(row): row for row in csv.DictReader(source)}
+
+
+@lru_cache(maxsize=1)
+def locations():
+    """Approximate map positions for the schematic map. Never used in any ranking."""
+    if not LOCATIONS.exists():
+        return []
+    with LOCATIONS.open(encoding='utf-8-sig', newline='') as source:
+        result = []
+        for row in csv.DictReader(source):
+            try:
+                result.append({'site': row['site'].strip(), 'lat': float(row['lat']), 'lon': float(row['lon']),
+                               'confidence': (row.get('location_confidence') or 'approximate').strip(),
+                               'source': (row.get('location_source') or '').strip(),
+                               'anchor': (row.get('label_anchor') or 'right').strip()})
+            except (KeyError, ValueError):
+                continue
+        return result
 
 
 def analyze(content):
@@ -46,7 +67,7 @@ def analyze(content):
             raise ValueError('The CSV has duplicate column names.')
     if not required.issubset(reader.fieldnames or []):
         raise ValueError('Missing columns: ' + ', '.join(sorted(required - set(reader.fieldnames or []))))
-    with (WORKSPACE / 'impactdata/cpcb_water_quality_criteria.csv').open(encoding='utf-8') as source:
+    with (DATA_DIR / 'cpcb_water_quality_criteria.csv').open(encoding='utf-8') as source:
         criteria = list(csv.DictReader(source))
     limits = {r['parameter']: r['limit'] for r in criteria if r['class'] == 'B'}
     ph_min, ph_max = map(float, limits['pH'].split('-'))
@@ -129,18 +150,26 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError, csv.Error):
             self.send(500, json.dumps({'error': 'The bundled data could not be read. Check the local CSV files.'}).encode())
 
+    def route_path(self):
+        """Local requests use the URL path. Vercel rewrites pass the original path in ?p=."""
+        parsed = urlparse(self.path)
+        forwarded = parse_qs(parsed.query).get('p', [''])[0]
+        return unquote(forwarded or parsed.path)
+
     def get_resource(self):
-        path = unquote(urlparse(self.path).path)
+        path = self.route_path()
         if path == '/api/health':
             self.send(200, json.dumps({'app': 'visarjan-ghat-watch', 'version': METHOD_VERSION}).encode())
         elif path in ('/api/sample', '/api/data'):
             filename = 'sample_bhopal_2025.csv' if path == '/api/sample' else 'bhopal_ghats_2023_2025.csv'
-            result = analyze((WORKSPACE / 'impactdata' / filename).read_text(encoding='utf-8-sig'))
+            result = analyze((DATA_DIR / filename).read_text(encoding='utf-8-sig'))
             self.send(200, json.dumps(result).encode())
         elif path == '/sample.csv':
-            self.send(200, (WORKSPACE / 'impactdata/sample_bhopal_2025.csv').read_bytes(), 'text/csv; charset=utf-8')
+            self.send(200, (DATA_DIR / 'sample_bhopal_2025.csv').read_bytes(), 'text/csv; charset=utf-8')
         elif path == '/data.csv':
-            self.send(200, (WORKSPACE / 'impactdata/bhopal_ghats_2023_2025.csv').read_bytes(), 'text/csv; charset=utf-8')
+            self.send(200, (DATA_DIR / 'bhopal_ghats_2023_2025.csv').read_bytes(), 'text/csv; charset=utf-8')
+        elif path == '/api/locations':
+            self.send(200, json.dumps(locations()).encode())
         elif path == '/template.csv':
             from datetime import date
             output = io.StringIO()
@@ -151,7 +180,7 @@ class Handler(BaseHTTPRequestHandler):
                     writer.writerow([date.today().year, 'Durga', 'New site - replace this name', phase, parameter, '', 'not sampled', '', '' if parameter == 'pH' else 'mg/l', ''])
             self.send(200, output.getvalue().encode('utf-8-sig'), 'text/csv; charset=utf-8')
         elif path.startswith('/reports/') and path.removeprefix('/reports/') in REPORTS.values():
-            self.send(200, (WORKSPACE / 'dataa' / path.removeprefix('/reports/')).read_bytes(), 'application/pdf')
+            self.send(200, (REPORT_DIR / path.removeprefix('/reports/')).read_bytes(), 'application/pdf')
         elif path in ('/', '/index.html', '/app.js', '/styles.css'):
             name = path.lstrip('/') or 'index.html'
             kind = 'text/javascript' if name.endswith('.js') else 'text/css' if name.endswith('.css') else 'text/html'
@@ -160,7 +189,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send(404, b'Not found', 'text/plain')
 
     def do_POST(self):
-        if self.path != '/api/analyze':
+        if self.route_path() != '/api/analyze':
             return self.send(404, b'Not found')
         try:
             size = int(self.headers.get('Content-Length', 0))
@@ -182,8 +211,7 @@ class Server(ThreadingHTTPServer):
 
 def already_serving():
     try:
-        connect_host = '127.0.0.1' if HOST in ('0.0.0.0', '') else HOST
-        with urllib.request.urlopen(f'http://{connect_host}:{PORT}/api/health', timeout=1) as response:
+        with urllib.request.urlopen(f'http://{HOST}:{PORT}/api/health', timeout=1) as response:
             return json.load(response).get('app') == 'visarjan-ghat-watch'
     except (OSError, ValueError):
         return False

@@ -1,5 +1,7 @@
 let dataset, selected, currentBrief = '', requestVersion = 0, pendingRequest;
 let uploadedDataset;
+let locations = [];
+const scopeRows = v => dataset.rows.filter(r=>(v.year==='all'||r.year===v.year)&&(v.festival==='all'||r.festival===v.festival));
 let activeDataset = new URLSearchParams(location.search).get('dataset') === 'sample' ? 'sample' : 'full';
 let priority = 'pollution', activeTab = 'overview', selectedEvent, historyFestival, historyParameter = 'Dissolved oxygen';
 const $ = id => document.getElementById(id);
@@ -123,9 +125,117 @@ function render() {
   $('breaches').textContent=`${v.breaches} / ${v.assessed}`;
   $('coverage').textContent=pct(v.assessed,v.expected);
   $('gaps').textContent=v.expected-v.assessed;
+  renderBreakdown(v);
   if(!v.sites.some(g=>g.site===selected))selected=v[`${priority}_order`][0];
   renderRanking();
   renderDetail();
+}
+
+// Per-parameter counts for the selected scope, matching the guide's own framing
+// ("42 of 116 dissolved-oxygen readings below 5 mg/l").
+function renderBreakdown(v) {
+  const rows=scopeRows(v).filter(assessed);
+  const wording={'Dissolved oxygen':'below 5 mg/l','BOD':'above 3 mg/l','pH':'outside 6.5–8.5'};
+  $('breach-breakdown').innerHTML=core.map(p=>{
+    const all=rows.filter(r=>r.parameter===p), bad=all.filter(r=>r.severity>0);
+    return `<li><span>${esc(p)} ${wording[p]}</span><b class="${bad.length?'bad':''}">${bad.length} / ${all.length}</b></li>`;
+  }).join('');
+}
+
+const MAP_BOUNDS={west:77.272,east:77.535,north:23.292,south:23.183};
+const tierColor=['#a33b2d','#d08a2b','#2f6f9f','#9aa5b3'];
+function markerColor(g) {
+  if(priority==='pollution')return tierColor[g.assessed?g.priority_tier:3];
+  return g.coverage<.5?tierColor[0]:g.coverage<.9?tierColor[1]:tierColor[2];
+}
+
+// Schematic SVG map. Equirectangular projection over a fixed Bhopal window; lakes are
+// drawn from their OpenStreetMap bounding boxes as simple shapes, not surveyed outlines.
+function renderMap() {
+  const v=view(); if(!v)return;
+  const W=320,H=175,pad=10;
+  const kx=Math.cos(23.24*Math.PI/180);
+  const x=lon=>pad+(lon-MAP_BOUNDS.west)/(MAP_BOUNDS.east-MAP_BOUNDS.west)*(W-2*pad);
+  const y=lat=>pad+(MAP_BOUNDS.north-lat)/(MAP_BOUNDS.north-MAP_BOUNDS.south)*(H-2*pad);
+  const lakes=[
+    {name:'Upper Lake (Bhojtal)',west:77.2657,east:77.3982,south:23.2084,north:23.2716,rx:1,ry:.78},
+    {name:'Lower Lake',west:77.3975,east:77.4138,south:23.2425,north:23.2545},
+    {name:'',cx:77.4212,cy:23.2067,r:.0045},
+    {name:'',cx:77.4888,cy:23.2581,r:.006},
+  ];
+  let svg=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Schematic map of Bhopal immersion ghats, coloured by the current priority list">`;
+  for(const lake of lakes){
+    if(lake.r){svg+=`<ellipse class="lake" cx="${x(lake.cx)}" cy="${y(lake.cy)}" rx="${(x(lake.cx+lake.r)-x(lake.cx))*kx}" ry="${y(lake.cy)-y(lake.cy+lake.r)}"/><text class="lake-label" x="${x(lake.cx)}" y="${y(lake.cy)+22}" text-anchor="middle">${esc(lake.name)}</text>`;}
+    else{const cx=(lake.west+lake.east)/2,cy=(lake.south+lake.north)/2;svg+=`<ellipse class="lake" cx="${x(cx)}" cy="${y(cy)}" rx="${(x(lake.east)-x(lake.west))/2*(lake.rx??1)}" ry="${(y(lake.south)-y(lake.north))/2*(lake.ry??1)}"/><text class="lake-label" x="${x(cx)}" y="${y(cy)+(lake.rx?4:18)}" text-anchor="middle">${esc(lake.name)}</text>`;}
+  }
+  const unplaced=[];
+  const placed=v.sites.map(g=>({g,loc:locations.find(l=>l.site===g.site)})).filter(({g,loc})=>{if(!loc)unplaced.push(g.site);return Boolean(loc);});
+  // Draw the selected marker last so it stays on top.
+  placed.sort((a,b)=>(a.g.site===selected)-(b.g.site===selected));
+  for(const {g,loc} of placed){
+    const px=x(loc.lon),py=y(loc.lat),rank=g[`${priority}_rank`];
+    const title=`${g.site}: ${priority==='pollution'?(rank?`pollution rank ${rank}`:'unranked, no assessable reading'):`testing rank ${rank}`} · ${Math.round(g.coverage*100)}% coverage · position ${loc.confidence}`;
+    const short=g.site.replace(' (Sant Hirdaram)','').replace(' / Kamla Park kund','').replace(' / kund','').replace(' ghat','').replace(' kund','').replace(' lake','');
+    const anchor={above:[px,py-12,'middle'],below:[px,py+18,'middle'],left:[px-11,py+3,'end']}[loc.anchor]||[px+11,py+3,'start'];
+    svg+=`<g class="marker ${loc.confidence} ${g.site===selected?'active':''}" tabindex="0" role="button" data-site="${esc(g.site)}" aria-label="${esc(title)}"><title>${esc(title)}</title><circle cx="${px}" cy="${py}" r="8.5" fill="${markerColor(g)}"/><text x="${px}" y="${py+3}">${rank??'–'}</text><text class="name" x="${anchor[0]}" y="${anchor[1]}" text-anchor="${anchor[2]}">${esc(short)}</text></g>`;
+  }
+  svg+='</svg>';
+  const legend=priority==='pollution'
+    ?`<span><i style="background:${tierColor[0]}"></i>Oxygen below 5 mg/l</span><span><i style="background:${tierColor[1]}"></i>pH or BOD breach only</span><span><i style="background:${tierColor[2]}"></i>No breach assessed</span><span><i style="background:${tierColor[3]}"></i>Unranked</span>`
+    :`<span><i style="background:${tierColor[0]}"></i>Under 50% coverage</span><span><i style="background:${tierColor[1]}"></i>50–89%</span><span><i style="background:${tierColor[2]}"></i>90% or more</span>`;
+  $('map').innerHTML=svg;
+  $('map-note').innerHTML=`<span class="map-legend">${legend}<span><i class="dashed"></i>Approximate position</span></span>`+(unplaced.length?`<span class="map-off">Not on map (no public position on file): ${esc(unplaced.join(', '))}.</span><br>`:'')+`Schematic map. Positions are public, approximate placements for orientation only and play no part in any ranking. Edit <code>ghat_locations.csv</code> to correct them.`;
+  $('map').querySelectorAll('.marker').forEach(m=>{
+    const pick=()=>{const site=m.dataset.site;if(site!==selected){selected=site;selectedEvent=undefined;}renderRanking();renderDetail();};
+    m.onclick=pick; m.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();pick();}};
+  });
+}
+
+let liveMap, liveLayer, liveFitted=false;
+// Real tile map (Leaflet + OpenStreetMap). Falls back to the schematic SVG when the
+// library or the tiles cannot load, e.g. offline. Marker colours mirror the list.
+function renderLiveMap() {
+  const v=view(); const host=$('live-map');
+  if(!v||!host)return;
+  if(typeof L==='undefined'){
+    document.body.classList.remove('has-live-map');
+    host.style.display='none';
+    $('live-map-note').textContent='Interactive map unavailable (offline or blocked). The schematic map below is shown instead.';
+    return;
+  }
+  document.body.classList.add('has-live-map');
+  host.style.display='';
+  if(!liveMap){
+    liveMap=L.map(host,{scrollWheelZoom:false,zoomSnap:.5}).setView([23.24,77.40],12);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors'}).addTo(liveMap);
+    liveLayer=L.layerGroup().addTo(liveMap);
+    host.addEventListener('click',e=>{
+      const button=e.target.closest('[data-open-site]');
+      if(!button)return;
+      const site=button.dataset.openSite;
+      if(site!==selected){selected=site;selectedEvent=undefined;}
+      renderRanking();renderDetail();
+      $('detail').scrollIntoView({behavior:'smooth',block:'start'});
+    });
+  }
+  liveLayer.clearLayers();
+  const points=[]; const unplaced=[];
+  for(const g of v.sites){
+    const loc=locations.find(l=>l.site===g.site);
+    if(!loc){unplaced.push(g.site);continue;}
+    const rank=g[`${priority}_rank`], color=markerColor(g), reason=g.priority_reading;
+    const icon=L.divIcon({className:'',html:`<div class="ghat-pin ${loc.confidence} ${g.site===selected?'active':''}" style="background:${color}" title="${esc(g.site)}">${rank??'–'}</div>`,iconSize:[30,30],iconAnchor:[15,15],popupAnchor:[0,-16]});
+    const why=reason?`${reason.parameter} ${reason.value}${reason.parameter==='pH'?'':' mg/l'} in ${reason.festival} ${reason.year} (${phaseLabels[reason.phase].toLowerCase()}), against ${dataset.limits[reason.parameter]}.`:g.assessed?'No breach among assessed core readings. Not proof of full compliance.':'No assessable core readings in this scope.';
+    const source=reason&&reason.report&&reason.source_page?`<a href="/reports/${encodeURIComponent(reason.report)}#page=${reason.source_page}" target="_blank" rel="noopener">Report PDF p. ${reason.source_page}</a>`:'';
+    const gmaps=`https://www.google.com/maps/search/?api=1&query=${loc.lat},${loc.lon}`;
+    const popup=`<div class="ghat-popup"><h3>${esc(g.site)}</h3><span class="tag" style="background:${color}">${priority==='pollution'?(rank?`Pollution rank ${rank} of ${v.sites.filter(x=>x.pollution_rank).length}`:'Unranked'):`Testing rank ${rank}`}</span><p>${esc(why)}</p><p>${g.breaches} of ${g.assessed} assessed readings outside reference · ${pct(g.coverage)} coverage${g.absent_events?` · ${g.absent_events} absent event${g.absent_events===1?'':'s'}`:''}</p>${g.identity_uncertain?'<p><b>Confirm site identity:</b> the name may cover two places.</p>':''}<div class="popup-actions"><button class="primary" data-open-site="${esc(g.site)}">Open details ↓</button>${source}<a href="${gmaps}" target="_blank" rel="noopener">Google Maps ↗</a></div><small>${esc(g.water_body)} · position ${esc(loc.confidence)}. ${esc(loc.source)}</small></div>`;
+    const marker=L.marker([loc.lat,loc.lon],{icon,title:g.site,keyboard:true}).bindPopup(popup,{maxWidth:320});
+    marker.on('click',()=>{if(g.site!==selected){selected=g.site;selectedEvent=undefined;renderRanking();renderDetail();marker.openPopup();}});
+    marker.addTo(liveLayer);
+    points.push([loc.lat,loc.lon]);
+  }
+  if(points.length&&!liveFitted){liveMap.fitBounds(points,{padding:[40,40],maxZoom:13});liveFitted=true;}
+  $('live-map-note').textContent=(unplaced.length?`Not on map (no public position on file): ${unplaced.join(', ')}. `:'')+'Dashed rings mark approximate positions. Positions come from ghat_locations.csv and never affect a rank. Markers scroll the page to that ghat\'s evidence.';
 }
 
 function renderRanking() {
@@ -143,6 +253,8 @@ function renderRanking() {
     if(site!==selected){selected=site;selectedEvent=undefined;}
     renderRanking();renderDetail();
   });
+  renderMap();
+  renderLiveMap();
 }
 
 function sourceLabel(r) {
@@ -170,7 +282,7 @@ function renderDetail() {
   const worst=g.priority_reading;
   const reason=worst?`${worst.parameter} was ${worst.value}${worst.parameter==='pH'?'':' mg/l'} in ${worst.festival} ${worst.year} (${phaseLabels[worst.phase].toLowerCase()} immersion), against ${dataset.limits[worst.parameter]}. ${g.breaches} of ${g.assessed} assessed readings were outside reference across this scope.`:g.assessed?'No breaches among the assessed core readings in this scope. This does not establish full compliance or current safety.':'No core readings can be assessed in this scope. Prioritise obtaining evidence; pollution cannot be ranked.';
   const event=currentEvent(); selectedEvent=eventKey(event);
-  $('detail').innerHTML=`<div class="detail-heading"><div><p class="water-body">${esc(g.water_body)} · ${g.events.length} event${g.events.length===1?'':'s'} in selected scope</p><h2>${esc(g.site)}</h2><span class="badge ${!g.assessed?'neutral':!g.breaches?'green':''}">${g.breaches?'Recorded breaches':g.assessed?'No breaches in assessed readings':'Insufficient data'}</span></div><button id="site-brief" class="quiet">Site brief ↗</button></div><p class="lead-reason">${esc(reason)}</p>${worst?sourceLink(worst):''}${g.identity_uncertain?'<div class="warning">Confirm this site identity. The dataset marks its site matching as uncertain; verify that these records refer to the same location before using cross-year comparisons.</div>':''}<div class="site-metrics"><div><span>Pollution / testing rank</span><b>${g.pollution_rank??'—'} / ${g.testing_rank}</b><span>Within this selected scope</span></div><div><span>Assessed / expected</span><b>${g.assessed} / ${g.expected}</b><span>${pct(g.coverage)} core coverage</span></div><div><span>After-immersion breaches</span><b>${g.after_breaches} / ${g.after_assessed}</b><span>Assessed after readings only</span></div></div><nav class="detail-tabs" role="tablist" aria-label="Ghat detail views">${[['overview','Readings'],['recovery','Recovery'],['history','Across years'],['evidence','All evidence']].map(([id,label])=>`<button id="tab-${id}" role="tab" aria-selected="${activeTab===id}" aria-controls="detail-content" data-tab="${id}">${label}</button>`).join('')}</nav><div id="detail-content" role="tabpanel" aria-labelledby="tab-${activeTab}"></div>`;
+  $('detail').innerHTML=`<div class="detail-heading"><div><p class="water-body">${esc(g.water_body)} · ${g.events.length} event${g.events.length===1?'':'s'} in selected scope</p><h2>${esc(g.site)}</h2><span class="badge ${!g.assessed?'neutral':!g.breaches?'green':''}">${g.breaches?'Recorded breaches':g.assessed?'No breaches in assessed readings':'Insufficient data'}</span></div><span class="detail-actions">${(()=>{const loc=locations.find(l=>l.site===g.site);return loc?`<a class="map-link" target="_blank" rel="noopener" title="Opens openstreetmap.org in a new tab (internet required). Position is ${esc(loc.confidence)}: ${esc(loc.source)}" href="https://www.openstreetmap.org/?mlat=${loc.lat}&amp;mlon=${loc.lon}#map=15/${loc.lat}/${loc.lon}">Map ↗</a>`:''})()}<button id="site-brief" class="quiet">Site brief ↗</button></span></div><p class="lead-reason">${esc(reason)}</p>${worst?sourceLink(worst):''}${g.identity_uncertain?'<div class="warning">Confirm this site identity. The dataset marks its site matching as uncertain; verify that these records refer to the same location before using cross-year comparisons.</div>':''}<div class="site-metrics"><div><span>Pollution / testing rank</span><b>${g.pollution_rank??'—'} / ${g.testing_rank}</b><span>Within this selected scope</span></div><div><span>Assessed / expected</span><b>${g.assessed} / ${g.expected}</b><span>${pct(g.coverage)} core coverage</span></div><div><span>After-immersion breaches</span><b>${g.after_breaches} / ${g.after_assessed}</b><span>Assessed after readings only</span></div></div><nav class="detail-tabs" role="tablist" aria-label="Ghat detail views">${[['overview','Readings'],['recovery','Recovery'],['history','Across years'],['evidence','All evidence']].map(([id,label])=>`<button id="tab-${id}" role="tab" aria-selected="${activeTab===id}" aria-controls="detail-content" data-tab="${id}">${label}</button>`).join('')}</nav><div id="detail-content" role="tabpanel" aria-labelledby="tab-${activeTab}"></div>`;
   $('site-brief').onclick=()=>showBrief(true);
   document.querySelectorAll('[data-tab]').forEach(button=>button.onclick=()=>{activeTab=button.dataset.tab;renderDetail();});
   if(activeTab==='history')renderHistory();
@@ -242,7 +354,7 @@ function renderChart() {
   const width=680,height=245,left=48,right=22,top=25,bottom=35;
   const x=index=>years.length===1?width/2:left+index*(width-left-right)/(years.length-1);
   const y=value=>top+(high-value)/(high-low)*(height-top-bottom);
-  const colors=['#477794','#b26047','#377459'];
+  const colors=['#6aa5d8','#b26047','#1d5a8a'];
   let svg=`<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(historyParameter)} by year and sampling phase for ${esc(historyFestival)}. Exact values are in the following table.">`;
   for(let tick=0;tick<=4;tick++){
     const value=low+(high-low)*(tick/4);
@@ -313,4 +425,10 @@ $('upload').onchange=async event=>{
   if(file.size>2_000_000){$('error').textContent='Upload a CSV smaller than 2 MB. Your current dataset has not changed.';return;}
   await load(file);
 };
-load();
+(async()=>{
+  try{
+    const response=await fetch('/api/locations',{signal:AbortSignal.timeout(5000)});
+    if(response.ok)locations=await response.json();
+  }catch{ /* The map is optional; rankings and briefs do not depend on it. */ }
+  await load();
+})();

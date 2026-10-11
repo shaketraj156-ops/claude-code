@@ -1,13 +1,13 @@
 """Tests for missing-event coverage, ranking and recovery semantics."""
 import unittest
-from server import analyze, WORKSPACE
+from server import analyze, DATA_DIR
 from test_server import record, as_csv
 
 
 class ModelTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.full = analyze((WORKSPACE/'impactdata/bhopal_ghats_2023_2025.csv').read_text(encoding='utf-8-sig'))
+        cls.full = analyze((DATA_DIR/'bhopal_ghats_2023_2025.csv').read_text(encoding='utf-8-sig'))
 
     def test_full_coverage_and_missing_events(self):
         view = self.full['model']['views']['all|all']

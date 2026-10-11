@@ -1,86 +1,126 @@
 # Visarjan Ghat Watch
 
-Track 2 · Bhopal Municipal Corporation officer workspace
+**Track 2 · Visarjan Ghat Watch** · Claude Impact Lab × Cerebras Café Compute, Bhopal · 11 October 2026
 
-Turn the supplied 2023–2025 water tests into an explained list of ghats needing attention and a separate list needing fresh testing. Readings, recovery comparisons and bilingual briefs remain traceable to their evidence. This is a deterministic analysis application, not a trained AI predictor.
+| | |
+|---|---|
+| **Team name** | _TEAM NAME HERE_ |
+| **Members** | _Name (role) · Name (role) · Name (role) · Name (role)_ |
+| **Track** | Track 2: Visarjan Ghat Watch |
+| **The one user** | The Bhopal Municipal Corporation (BMC) officer who plans Durga visarjan at the ghats on 20 October 2026 and decides where extra cleaning, aeration and water testing go. |
+| **The one workflow** | Open the tool, read the ranked list of ghats, check the evidence behind a rank, forward the Hindi/English brief. |
 
-## Run
+Three years of MPPCB immersion water tests (2023–2025, Ganesh and Durga, before / during / after) turned into a ranked list of Bhopal ghats, with every number traceable to the report page it came from, and a one-page brief in Hindi and English.
 
-Python 3.10+ is required. The application has no third-party runtime dependencies, API keys, database, or external services.
+![Overview of the tool](docs/overview.png)
 
-1. Keep this folder beside the supplied `impactdata/` and `dataa/` folders.
-2. On Windows, double-click `start-demo.cmd` (or `Start Visarjan Ghat Watch.cmd` in the parent folder). Alternatively run `python server.py` in this folder.
-3. Open http://127.0.0.1:8765.
+## Run it (3 steps)
 
-The launcher starts a hidden local server if needed. A foreground server stops with Ctrl+C. Directly opening `index.html` redirects to the server if available, or shows launch instructions. Uploads exist only in memory; reload the bundled data to discard them.
+Python 3.10 or newer. No third-party packages, API keys or database. Internet is only needed for the map background tiles; everything else works offline.
 
-## One user, one workflow
+1. Download or clone this repository.
+2. Windows: double-click `start-demo.cmd`. Any OS: run `python server.py` in this folder.
+3. Open http://127.0.0.1:8765 in a browser.
 
-The BMC officer chooses a report-year/festival scope, reviews pollution and testing priorities, inspects the evidence for a ghat, and exports a brief or priority CSV for follow-up.
+A foreground server stops with Ctrl+C. Uploaded CSVs stay in memory only.
 
-- All **1,524 Bhopal readings** load by default, across seven sites, three years and two festivals.
-- Choose the **453-row 2025 sample** from the Dataset selector for a smaller test.
-- Recorded pollution and fresh testing have independent, explicit rankings.
-- A known site remains visible when its entire selected event is absent. For Durga 2025 this includes Bairagarh and Malikhedi.
-- Inspect before/during/after values, recovery findings, same-festival charts across years, and all 13 measured parameters with their source references.
-- Export a consolidated or individual-site brief in Hindi and English, print both languages to PDF, export both priority lists to CSV, or download an event's measurements.
-- Upload measurements for another site with the provided CSV template. Invalid uploads preserve the previous dataset. Uploads replace, rather than merge into, the current dataset.
+## What the officer gets
 
-## Ranking method v1.1
+- **Ranked list of ghats by recorded pollution**, with the reason for each rank in plain words and the report and PDF page that reading came from. Clicking any value opens the bundled MPPCB report at that page.
+- **A second list for fresh testing**: ghats with the most missing checks and the oldest evidence. Missing data is shown as missing, never as clean.
+- **Before / during / after table**, recovery check and a same-festival trend across years for each ghat, plus a register of all 13 measured parameters with sources.
+- **Officer brief in Hindi and English** for the selected scope or a single ghat: download as text, print to PDF, or export both priority lists as CSV.
+- **Interactive map** of the seven ghats on OpenStreetMap tiles (Leaflet). Click a marker for the ghat's rank, the reason, the report page and a Google Maps link, or jump to its evidence. Offline, a built-in schematic map takes over.
+- **Upload** of new laboratory results with the provided template; the same rules and references apply to them.
 
-The server reads Class B reference values from `cpcb_water_quality_criteria.csv`. Currently these are pH 6.5–8.5, dissolved oxygen at least 5 mg/l, and BOD at most 3 mg/l. These comparisons assume the supplied units and compatible test methods; they do not establish complete Class B compliance.
+Headline findings reproduced live from the bundled data:
 
-**Pollution priority:** for each numeric, unflagged core reading, calculate deviation outside its reference: oxygen `(minimum-value)/minimum`, BOD `(value-maximum)/maximum`, and pH distance outside its reference range divided by the range width; clamp negative deviations to zero.
+| Finding | Value |
+|---|---|
+| Dissolved-oxygen readings of 0 mg/l (all at Bairagarh kund) | 4 |
+| Dissolved-oxygen readings below the 5 mg/l bathing limit | 42 of 116 |
+| BOD readings above the 3 mg/l bathing limit | 100 of 112 |
 
-Sites are then grouped, in this order:
+## How the ranking works (method v1.1)
 
-1. any dissolved oxygen below reference — ordered by lowest recorded oxygen, then by the share of that site's oxygen readings below reference;
+Readings are compared with the CPCB **Class B (outdoor bathing)** criteria read from `data/cpcb_water_quality_criteria.csv`: pH 6.5–8.5, dissolved oxygen at least 5 mg/l, BOD at most 3 mg/l. Class B is used because idol immersion involves people standing in the water; it is a comparison benchmark, not an immersion permission.
+
+**Pollution priority.** Only numeric, unflagged pH, dissolved-oxygen and BOD readings are assessed. Sites are grouped in this order:
+
+1. any dissolved oxygen below 5 mg/l, ordered by the lowest oxygen recorded, then by how often that site's oxygen is below the limit;
 2. breaches only in pH or BOD;
 3. assessed with no breach;
-4. no assessable core reading — these stay unranked.
+4. nothing assessable, which stays unranked.
 
-Remaining ties use worst deviation descending, then breach proportion descending, then site name. Equal evidence shares a rank.
+Ties use the worst normalised deviation, then the share of assessed readings outside reference. Equal evidence shares a rank. Dissolved oxygen is grouped first because its deviation is capped at 1.0 while BOD's is unbounded; ranking by deviation alone put one high BOD reading above water holding no oxygen at all. This is a transparent project rule, not an official CPCB score or a forecast. All years count equally and the year of the deciding reading is always shown.
 
-Dissolved oxygen is grouped ahead of the other parameters because its deviation is bounded at 1.0 while BOD's is unbounded; ranking on deviation alone put a single high BOD reading above water holding no oxygen at all. The method is a transparent project heuristic, not an official CPCB risk score or a validated forecast. All years have equal status; an old severe reading can determine the ranking, and its year is shown.
+**Testing priority.** Lowest core coverage first (nine expected checks per site and event), then the oldest latest numeric evidence year, then uncertain site identity.
 
-The priority CSV export records the reading that produced each rank in its `rank_reason_*` columns — the same reading shown on screen and in the brief — alongside the site's single largest deviation in `worst_deviation_*`. For a low-oxygen site these are usually different readings.
+**Recovery and history.** "Returned within reference" needs a during reading outside the limit followed by an after reading within it. No label claims causation, a return to baseline, or current safety. Trend lines break at missing readings; nothing is interpolated.
 
-**Testing priority:** rank by lowest coverage, then oldest latest numeric evidence year, then uncertain site identity. Coverage has nine expected core checks per site/event. The latest evidence year uses only the selected festival(s) and no year later than the selected year. Report years are not exact sampling dates. Sites absent from the loaded dataset and events absent from the entire dataset cannot be inferred.
+The full method, the input contract for uploads and the data limits are also inside the app under "How priorities are calculated".
 
-**Recovery:** “Returned within reference” requires an outside-reference during value and a within-reference after value. “Still outside reference” requires breaches at both stages. A before/after difference requires both numeric readings. None of these labels establishes causation, return to baseline, or current safety.
+## What works and what doesn't
 
-**History:** compare the same site, parameter, festival and phase across all loaded years. Missing readings break the chart lines. History deliberately shows all available years independently of the main year filter.
+**Works**
 
-## Input contract and evidence
+- All 1,524 Bhopal readings load by default; the 453-row 2025 sample is selectable for a quick test.
+- Every ranking reason, brief line and CSV row cites the same reading and its PDF page. 22 backend tests and 21 Chrome tests cover the rules, the uploads and the exports.
+- Sites whose whole event is missing from a report (Bairagarh and Malikhedi for Durga 2025) stay visible and move up the testing list.
+- The Rani Kamlapati / Kamla Park identity doubt from the data pack is carried into the screen, both briefs and both CSV exports.
 
-Required CSV columns: `year,festival,site,phase,parameter,value,flag,source_page`.
+**Doesn't, or not yet**
 
-Recommended optional columns: `water_body,unit_assumed,site_match_confidence,source_document`.
+- **Map positions are approximate.** Only Prempura ghat and Shahpura Lake come from an OpenStreetMap feature. The other five are public placements (lake shore, village centroid, nearby landmark) recorded with their source and confidence in `ghat_locations.csv`. Malikhedi is marked low confidence. The map is for orientation only and plays no part in any ranking. Please correct the file after a site visit.
+- Measurements end in 2025 and say nothing about today's water. Report years are not sampling dates.
+- Units are assumed; the reports print none. Total coliform is not in the data, so full Class B compliance cannot be shown. Metals and the other seven parameters are displayed with sources but have no Class B threshold to compare against.
+- No health effects, immersion permission or future water quality are inferred, and the follow-up suggestions are prompts for the officer, not validated interventions.
+- Hindi and English briefs are built from templates, not a language model, so wording is fixed and plain.
+- The statewide MP file (21,600 rows) is bundled but not analysed; it has a different schema and the brief is for Bhopal only.
+- The app is a local, single-user tool. It has no login, no durable storage and should not be hosted publicly as is.
 
-- `site_match_confidence`: any stated value other than `high` marks the site's identity as uncertain, so `low` is never read as certain. Leaving it blank asserts nothing either way.
+## Data used
 
-- `phase`: `pre`, `during`, or `after`.
-- Core parameter names: `pH`, `Dissolved oxygen`, `BOD` (case variations normalised).
-- Oxygen and BOD must be in mg/l; pH is dimensionless. Blank units use the documented assumptions. No automatic unit conversion is performed.
-- `value` is numeric or blank. `flag` is blank, `BDL`, `ND`, `not sampled`, `*`, or `**`. Do not provide both a numeric value and a flag.
-- BDL/ND remain censored values, not zero, passing, or an invented concentration.
-- Duplicate columns/measurement keys, inconsistent row lengths, invalid numeric values, unsupported core units, negative values, and pH outside 0–14 are rejected. Upload limit: 2 MB.
-- A PDF link is provided only when the site, year, festival, phase, parameter, value, flag, unit and source page match a bundled Bhopal measurement. It is a dataset match, not independent laboratory verification. The supplied Bhopal data itself was only spot-checked.
-- For other measurements, supply a plain-text `source_document` description and keep the original laboratory/report evidence. The app does not invent official PDF citations for those rows.
-- The full file and the 2025 sample overlap. Do not concatenate them. The statewide MP CSV has a different schema and is outside this implementation's Bhopal scope.
+Everything comes from the Track 2 data pack, bundled here so the repository runs on its own:
 
-## Data and limitations
+| Path | Contents |
+|---|---|
+| `data/bhopal_ghats_2023_2025.csv` | 1,524 readings at 7 Bhopal ghats, 2023–2025 (the file the app analyses) |
+| `data/sample_bhopal_2025.csv` | The 453 rows for 2025 |
+| `data/cpcb_water_quality_criteria.csv` | CPCB classes A–E; the app reads Class B from it |
+| `data/mp_immersion_sites_2023_2025.csv` | Statewide file, not analysed |
+| `data/DATA_DICTIONARY.md` | Column meanings from the pack |
+| `resources/*.pdf` | The three MPPCB immersion reports (2023, 2024, 2025) that the page links open |
 
-The app uses the supplied Bhopal CSV, its 2025 subset, the CPCB criteria CSV and the three original immersion PDFs. It reads the full Bhopal CSV to match source records even while displaying an upload. No extra public dataset or government connection is used.
+Original sources: [MPPCB 2025 report](https://www.mppcb.mp.gov.in/proc/mon/Ganesh_and_Durga_visarjan_report-2025.pdf), [MPPCB 2024 report](https://www.mppcb.mp.gov.in/proc/mon/Ganesh_and_Durga_visarjan_report-2024.pdf), [MPPCB 2023 report](https://www.mppcb.mp.gov.in/proc/mon/Idol_immer._Report_23_CPCB.pdf), [CPCB water quality criteria](https://cpcb.gov.in/water-quality-criteria/).
 
-Measurements end in 2025 by default and do not establish current conditions. Units are assumed in the reports' extracted data. Total coliform is absent, and the metal measurements do not have Class B thresholds in the supplied criteria. The combined Rani Kamlapati / Kamla Park name may represent two locations. This warning is carried into the briefs and into both CSV exports, as `identity_needs_check`. No health effects, immersion permission, or future water quality are inferred. Hindi/English summaries use templates rather than an AI service.
+**Extra public data added by the team (rule 3):** approximate ghat coordinates in `ghat_locations.csv`, taken from [OpenStreetMap Nominatim](https://nominatim.openstreetmap.org/) (Prempura ghat, Shahpura Lake, Sant Hirdaram Nagar, Upper and Lower Lake extents; © OpenStreetMap contributors, ODbL), [Wikipedia: Kamlapati Palace](https://en.wikipedia.org/wiki/Kamlapati_Palace) and [Wikipedia: Mali Khedi](https://en.wikipedia.org/wiki/Mali_Khedi), and a public [butterfly-observation record for Hatai Kheda lake](https://www.ifoundbutterflies.org/hatai-kheda-lake-bhopal-district-madhya-pradesh-india). The Durga visarjan date comes from [Drik Panchang](https://www.drikpanchang.com/navratri/durga-puja/durga-visarjan-date-time.html?year=2026). Map tiles are fetched from tile.openstreetmap.org and the Leaflet library from unpkg.com when online; no live government system is contacted.
 
-The app is intended for a local demonstration and officer review, not public multi-user hosting. It has no authentication, durable upload storage, GIS coordinates, forecasting, or validated intervention recommendations. Source data and reports retain their original ownership; the MIT licence covers this application's code.
+## Repository layout
 
-## Development and checks
+| File | Purpose |
+|---|---|
+| `server.py` | Local HTTP server, CSV validation, reading assessment against Class B |
+| `analysis.py` | Coverage, both rankings, recovery checks, consolidated briefs |
+| `briefs.py` | Hindi and English brief templates |
+| `index.html`, `app.js`, `styles.css` | The officer interface, charts and maps (Leaflet 1.9.4 from unpkg for tiles, schematic SVG offline); the browser never recomputes a rank |
+| `ghat_locations.csv` | Approximate map positions with source and confidence (editable) |
+| `start-demo.cmd`, `start_demo.py` | One-click launcher for Windows |
+| `test_server.py`, `test_analysis.py`, `test_browser.py` | Backend and Chrome regression tests |
+| `make_screenshots.py` | Regenerates `docs/` screenshots and the sample brief PDF |
+| `docs/` | Screenshots and `officer-brief-sample.pdf` |
 
-`server.py` validates input and serves the local app. `analysis.py` computes event coverage, both rankings, recovery and consolidated briefs. `app.js` handles the interface and charts; it does not independently recompute rankings. `styles.css` controls desktop, mobile and print layouts.
+## Development checks
 
-Run `python -m unittest test_server test_analysis -v` for backend checks. For Chrome tests, install development dependencies with `python -m pip install -r requirements-dev.txt`, then run `python -m unittest test_browser -v`. Browser tests use an existing Google Chrome installation and an isolated temporary server. They do not change the live demo.
+```
+python -m unittest test_server test_analysis -v
+python -m pip install -r requirements-dev.txt     # optional: Chrome tests and screenshots
+python -m unittest test_browser -v
+python make_screenshots.py
+```
 
-Before a hackathon submission, add your actual team name and members, publish the repository with its supplied data dependencies, and record the demonstration. No public repository has been created by this local build.
+Browser tests use an installed Google Chrome and an isolated temporary server, so they never disturb a running demo.
+
+## Licence and secrets
+
+MIT, see `LICENSE`. The licence covers this application's code; the MPPCB reports and the data pack keep their original ownership. The code contains no API keys, credentials or personal data.

@@ -1,0 +1,2 @@
+# Runtime uses only the Python standard library. This file exists so that build
+# systems (Railway/Railpack, Render, Nixpacks) detect the project as a Python app.

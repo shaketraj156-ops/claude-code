@@ -1,0 +1,8 @@
+site,lat,lon,location_confidence,location_source,label_anchor
+Bairagarh (Sant Hirdaram) kund,23.2716,77.3410,approximate,"OpenStreetMap Nominatim result for Sant Hirdaram Nagar / Bairagarh (23.2716, 77.3410); the kund is on the Upper Lake shore nearby. Confirm exact kund position locally.",right
+Khatlapura ghat,23.2540,77.4090,approximate,"Placed on the northern shore of Lower Lake using the OpenStreetMap Lower Lake centroid (23.2485, 77.4045). No OpenStreetMap feature named Khatlapura ghat was found. Confirm locally.",above
+Prempura ghat,23.2176,77.3755,openstreetmap,"OpenStreetMap Nominatim: prempura ghat, Bhopal (23.2175960, 77.3754926).",right
+Rani Kamlapati ghat / Kamla Park kund,23.2500,77.3972,approximate,"Kamla Park adjoins Kamlapati Palace (Wikipedia: 23.2509 N, 77.3979 E) between the Upper and Lower Lakes. The dataset says this name may cover two places; confirm which location was sampled.",left
+Hathaikheda dam / kund,23.2581,77.4888,approximate,"Hatai Kheda lake point from a public butterfly-observation record (23.2581238, 77.4888388). No OpenStreetMap feature for the dam was found. Confirm the kund position locally.",left
+Malikhedi kund,23.1977,77.3048,low,"Wikipedia village centroid for Mali Khedi, Huzur tehsil, Bhopal (23.1977 N, 77.3048 E). It is not confirmed that the immersion kund is at this village. Confirm locally before relying on the map.",right
+Shahpura lake ghat,23.2067,77.4212,openstreetmap,"OpenStreetMap Nominatim: Shahpura Lake, Bhopal (23.2066574, 77.4212385). The ghat is on the lake shore.",right

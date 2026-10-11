@@ -6,7 +6,7 @@ import threading
 import unittest
 from http.server import ThreadingHTTPServer
 from playwright.sync_api import sync_playwright, expect
-from server import Handler, WORKSPACE, analyze
+from server import Handler, DATA_DIR, analyze
 from analysis import METHOD_VERSION
 from test_server import as_csv, record
 
@@ -49,18 +49,18 @@ class BrowserTests(unittest.TestCase):
         self.page.locator('#upload').set_input_files({'name': 'test.csv', 'mimeType': 'text/csv', 'buffer': text.encode()})
 
     def test_complete_and_missing_coverage(self):
-        self.page.get_by_role('button', name='Hathaikheda', exact=False).click()
+        self.page.locator('#ranking').get_by_role('button', name='Hathaikheda', exact=False).click()
         expect(self.page.locator('#coverage-note')).to_contain_text('All 9 core checks are available')
         expect(self.page.locator('#core-table td.bad')).to_have_count(4)
-        self.page.get_by_role('button', name='Bairagarh', exact=False).click()
+        self.page.locator('#ranking').get_by_role('button', name='Bairagarh', exact=False).click()
         expect(self.page.locator('#coverage-note')).to_contain_text('6 of 9 core checks could not be assessed')
         expect(self.page.locator('#coverage-note')).to_contain_text('0 of 3 core parameters')
         expect(self.page.locator('#core-table td.bad')).to_have_count(2)
 
     def test_all_years_festivals_and_core_measurements(self):
-        self.page.locator('#upload').set_input_files(str(WORKSPACE / 'impactdata/bhopal_ghats_2023_2025.csv'))
+        self.page.locator('#upload').set_input_files(str(DATA_DIR / 'bhopal_ghats_2023_2025.csv'))
         expect(self.page.locator('#loading')).to_contain_text('1,524 readings')
-        rows = analyze((WORKSPACE / 'impactdata/bhopal_ghats_2023_2025.csv').read_text(encoding='utf-8-sig'))['rows']
+        rows = analyze((DATA_DIR / 'bhopal_ghats_2023_2025.csv').read_text(encoding='utf-8-sig'))['rows']
         for year in ['2023', '2024', '2025']:
             self.page.select_option('#year', year)
             for festival in ['Ganesh', 'Durga']:
@@ -69,7 +69,7 @@ class BrowserTests(unittest.TestCase):
                 sites = sorted(set(r['site'] for r in rows))
                 expect(self.page.locator('#ranking button')).to_have_count(len(sites))
                 for site in sites:
-                    self.page.get_by_role('button', name=site, exact=False).click()
+                    self.page.locator('#ranking').get_by_role('button', name=site, exact=False).click()
                     core = [r for r in selected if r['site'] == site and r['parameter'] in ('pH', 'BOD', 'Dissolved oxygen')]
                     numeric = [r for r in core if r['value'] is not None and not r['flag']]
                     bad = [r for r in numeric if (r['parameter'] == 'pH' and not 6.5 <= r['value'] <= 8.5)
@@ -115,7 +115,7 @@ class BrowserTests(unittest.TestCase):
         expect(self.page.locator('#coverage-note')).to_contain_text('1 of 3 core parameters')
 
     def test_download_and_print_include_hindi_and_caveats(self):
-        self.page.get_by_role('button', name='Rani Kamlapati', exact=False).click()
+        self.page.locator('#ranking').get_by_role('button', name='Rani Kamlapati', exact=False).click()
         self.page.locator('#site-brief').click()
         with self.page.expect_download() as download:
             self.page.locator('#download-brief').click()
@@ -152,7 +152,7 @@ class BrowserTests(unittest.TestCase):
 
     def test_mobile_layout_does_not_overflow(self):
         self.page.set_viewport_size({'width': 390, 'height': 844})
-        self.page.get_by_role('button', name='Hathaikheda', exact=False).click()
+        self.page.locator('#ranking').get_by_role('button', name='Hathaikheda', exact=False).click()
         self.assertTrue(self.page.evaluate('document.documentElement.scrollWidth <= window.innerWidth'))
 
     def test_full_default_and_absent_sites_remain_in_testing_list(self):
@@ -166,18 +166,42 @@ class BrowserTests(unittest.TestCase):
         top = self.page.locator('#ranking button b').all_text_contents()[:2]
         self.assertTrue(any('Bairagarh' in name for name in top))
         self.assertTrue(any('Malikhedi' in name for name in top))
-        self.page.get_by_role('button', name='Bairagarh', exact=False).click()
+        self.page.locator('#ranking').get_by_role('button', name='Bairagarh', exact=False).click()
         expect(self.page.locator('#detail-content .warning')).to_contain_text('no records')
         expect(self.page.locator('#core-table td.bad')).to_have_count(0)
         expect(self.page.locator('#core-table td.ok')).to_have_count(0)
         expect(self.page.locator('#coverage-note')).to_contain_text('9 of 9')
+
+    def test_map_markers_follow_ranking_and_select_sites(self):
+        self.page.goto(self.url)
+        expect(self.page.locator('#loading')).to_contain_text('1,524 readings')
+        # The live map hides the schematic; the schematic stays the testable, offline-safe copy.
+        self.page.evaluate("document.body.classList.remove('has-live-map')")
+        markers = self.page.locator('#map .marker')
+        expect(markers).to_have_count(7)
+        # Marker numbers are the same ranks as the list, and clicking one selects that ghat.
+        ranks = {m.get_attribute('data-site'): m.locator('text').first.text_content() for m in markers.all()}
+        listed = dict(zip(self.page.locator('#ranking button b').all_text_contents(),
+                          self.page.locator('#ranking .rank-number').all_text_contents()))
+        self.assertEqual(ranks, listed)
+        self.page.locator('#map .marker[data-site="Shahpura lake ghat"]').click()
+        expect(self.page.locator('#detail h2')).to_have_text('Shahpura lake ghat')
+        expect(self.page.locator('#map .marker.active')).to_have_attribute('data-site', 'Shahpura lake ghat')
+        expect(self.page.locator('#breach-breakdown li')).to_have_count(3)
+        expect(self.page.locator('#breach-breakdown')).to_contain_text('42 / 116')
+        expect(self.page.locator('#breach-breakdown')).to_contain_text('100 / 112')
+        # An uploaded site with no public position is reported, not silently dropped.
+        self.upload(as_csv([record(site='Somewhere new', value=8)]))
+        expect(self.page.locator('#loading')).to_contain_text('Uploaded CSV')
+        expect(self.page.locator('#map .marker')).to_have_count(0)
+        expect(self.page.locator('#map-note')).to_contain_text('Not on map')
 
     def test_recovery_history_evidence_and_report_links(self):
         self.page.select_option('#dataset', 'full')
         expect(self.page.locator('#loading')).to_contain_text('1,524 readings')
         self.page.select_option('#year', '2025')
         self.page.select_option('#festival', 'Ganesh')
-        self.page.get_by_role('button', name='Hathaikheda', exact=False).click()
+        self.page.locator('#ranking').get_by_role('button', name='Hathaikheda', exact=False).click()
         self.page.locator('#tab-recovery').click()
         expect(self.page.locator('#recovery-table')).to_contain_text('Still outside reference')
         self.page.locator('#tab-history').click()
@@ -235,7 +259,7 @@ class BrowserTests(unittest.TestCase):
         expect(self.page.locator('#detail-content .warning')).to_have_count(0)
         self.assertGreater(self.page.locator('#core-table td.bad').count(), 0)
         # Each ghat re-opens on its own rank-driving event rather than inheriting one.
-        self.page.get_by_role('button', name='Rani Kamlapati', exact=False).click()
+        self.page.locator('#ranking').get_by_role('button', name='Rani Kamlapati', exact=False).click()
         expect(self.page.locator('.lead-reason')).to_contain_text('Durga 2025')
         expect(self.page.locator('#event')).to_have_value('2025|Durga')
         self.assertGreater(self.page.locator('#core-table td.bad').count(), 0)
@@ -243,7 +267,7 @@ class BrowserTests(unittest.TestCase):
     def test_event_csv_carries_the_site_identity_warning(self):
         self.page.goto(self.url)
         expect(self.page.locator('#loading')).to_contain_text('1,524 readings')
-        self.page.get_by_role('button', name='Rani Kamlapati', exact=False).click()
+        self.page.locator('#ranking').get_by_role('button', name='Rani Kamlapati', exact=False).click()
         expect(self.page.locator('#detail > .warning')).to_contain_text('Confirm this site identity')
         self.page.locator('#tab-evidence').click()
         with self.page.expect_download() as download:

@@ -1,0 +1,9 @@
+docs/
+test_*.py
+make_screenshots.py
+start_demo.py
+start-demo.cmd
+__pycache__/
+*.log
+.git/
+data/mp_immersion_sites_2023_2025.csv

@@ -8,7 +8,7 @@ import urllib.error
 import urllib.request
 from unittest.mock import patch
 from http.server import ThreadingHTTPServer
-from server import analyze, Handler, WORKSPACE
+from server import analyze, Handler, DATA_DIR
 
 FIELDS = ['year', 'festival', 'site', 'phase', 'parameter', 'value', 'flag', 'source_page', 'unit_assumed']
 
@@ -31,12 +31,12 @@ def as_csv(rows):
 class AnalysisTests(unittest.TestCase):
     def test_bundled_files_and_sources(self):
         for name, count in [('sample_bhopal_2025.csv', 453), ('bhopal_ghats_2023_2025.csv', 1524)]:
-            data = analyze((WORKSPACE / 'impactdata' / name).read_text(encoding='utf-8-sig'))
+            data = analyze((DATA_DIR / name).read_text(encoding='utf-8-sig'))
             self.assertEqual(len(data['rows']), count)
             self.assertTrue(all(r['report'] for r in data['rows']))
 
     def test_bairagarh_actual_breaches_and_missing(self):
-        data = analyze((WORKSPACE / 'impactdata/sample_bhopal_2025.csv').read_text(encoding='utf-8-sig'))
+        data = analyze((DATA_DIR / 'sample_bhopal_2025.csv').read_text(encoding='utf-8-sig'))
         rows = [r for r in data['rows'] if 'Bairagarh' in r['site'] and r['festival'] == 'Ganesh'
                 and r['parameter'] in ('pH', 'BOD', 'Dissolved oxygen')]
         self.assertEqual(sum(r['status'] == 'Outside reference' for r in rows), 2)
@@ -83,7 +83,7 @@ class AnalysisTests(unittest.TestCase):
                 analyze(value)
 
     def test_sources_are_not_invented_for_uploaded_rows(self):
-        original = next(csv.DictReader((WORKSPACE / 'impactdata/sample_bhopal_2025.csv').read_text(encoding='utf-8-sig').splitlines()))
+        original = next(csv.DictReader((DATA_DIR / 'sample_bhopal_2025.csv').read_text(encoding='utf-8-sig').splitlines()))
         self.assertIsNotNone(analyze(as_csv([original]))['rows'][0]['report'])
         for change in [dict(value='7.35'), dict(site='New kund'), dict(source_page='99')]:
             updated = dict(original, **change)
