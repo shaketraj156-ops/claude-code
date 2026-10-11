@@ -1,9 +1,20 @@
 """Settings for the Ghat Watch backend. Change limits and weights here only."""
 from pathlib import Path
+import os
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
 READINGS_CSV = DATA_DIR / "bhopal_ghats_2023_2025.csv"
+
+# Load local gitignored .env if present
+_env_path = ROOT / ".env"
+if _env_path.exists():
+    with open(_env_path, encoding="utf-8") as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line and not _line.startswith("#") and "=" in _line:
+                _k, _v = _line.split("=", 1)
+                os.environ.setdefault(_k.strip(), _v.strip())
 
 # CPCB Class B (outdoor bathing). Keys are lowercase on purpose.
 LIMITS = {
