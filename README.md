@@ -26,9 +26,19 @@ python server.py
 
 Then open **http://127.0.0.1:8765**. Press Ctrl+C to stop.
 
-On Windows you can instead double-click **`Start Visarjan Ghat Watch.cmd`** in this folder.
+On Windows you can instead double-click **`Track2-ClaudeImpactLabs\Start Visarjan Ghat Watch.cmd`**.
 
-> Keep `visarjan-demo/` beside `impactdata/` and `dataa/` — the server resolves its data and source PDFs from its parent folder.
+## Repository layout
+
+```
+Track2-ClaudeImpactLabs/
+├── visarjan-demo/     the application
+├── impactdata/        supplied CSV data
+├── dataa/             original MPPCB source PDFs
+└── Start Visarjan Ghat Watch.cmd
+```
+
+`visarjan-demo/` must stay beside `impactdata/` and `dataa/` — the server resolves its data and source PDFs from its parent folder.
 
 ## What it does
 
@@ -58,7 +68,7 @@ On Windows you can instead double-click **`Start Visarjan Ghat Watch.cmd`** in t
 
 ## Method
 
-Ranking method **v1.1**. Sites are grouped by low dissolved oxygen first, then other breaches, then clean, then unassessable. Full rules — including why oxygen is grouped ahead of BOD, and the exact deviation formulas — are in **[`visarjan-demo/README.md`](visarjan-demo/README.md)** and in the "How priorities are calculated" panel inside the app.
+Ranking method **v1.1**. Sites are grouped by low dissolved oxygen first, then other breaches, then clean, then unassessable. Full rules — including why oxygen is grouped ahead of BOD, and the exact deviation formulas — are in **[`Track2-ClaudeImpactLabs/visarjan-demo/README.md`](Track2-ClaudeImpactLabs/visarjan-demo/README.md)** and in the "How priorities are calculated" panel inside the app.
 
 This is a deterministic, auditable project heuristic. It is **not** an official CPCB risk score, not a trained model, and not a validated prediction.
 
@@ -79,7 +89,7 @@ Sources: [MPPCB](https://www.mppcb.mp.gov.in/) visarjan reports 2023/2024/2025 a
 ## Tests
 
 ```cmd
-cd visarjan-demo
+cd Track2-ClaudeImpactLabs\visarjan-demo
 python -m unittest test_server test_analysis
 ```
 
