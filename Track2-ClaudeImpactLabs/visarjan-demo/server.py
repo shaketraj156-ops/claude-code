@@ -1,4 +1,5 @@
 """Local, dependency-free Visarjan Ghat Watch application. Run: python server.py"""
+import os
 import csv
 import io
 import json
@@ -12,7 +13,10 @@ from analysis import build_model, METHOD_VERSION
 
 ROOT = Path(__file__).resolve().parent
 WORKSPACE = ROOT.parent
-HOST, PORT = '127.0.0.1', 8765
+
+HOST = os.environ.get('HOST', '0.0.0.0')
+PORT = int(os.environ.get('PORT', 8765))
+
 REPORTS = {2023: 'Idol_immer._Report_23_CPCB.pdf', 2024: 'Ganesh_and_Durga_visarjan_report-2024.pdf', 2025: 'Ganesh_and_Durga_visarjan_report-2025.pdf'}
 PARAMETERS = {'pH', 'Dissolved oxygen', 'BOD'}
 PARAMETER_NAMES = {p.casefold(): p for p in PARAMETERS}
