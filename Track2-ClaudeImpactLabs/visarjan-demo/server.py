@@ -19,7 +19,8 @@ DATA_DIR = ROOT / 'data' if (ROOT / 'data' / 'bhopal_ghats_2023_2025.csv').exist
 REPORT_DIR = ROOT / 'resources' if (ROOT / 'resources').is_dir() else WORKSPACE / 'dataa'
 LOCATIONS = ROOT / 'ghat_locations.csv'
 # Hosting platforms (Railway, Render, Fly) inject PORT and need the server bound to 0.0.0.0.
-HOST, PORT = os.environ.get('HOST', '127.0.0.1'), int(os.environ.get('PORT', '8765'))
+HOST = os.environ.get('HOST') or ('0.0.0.0' if 'PORT' in os.environ else '127.0.0.1')
+PORT = int(os.environ.get('PORT', '8765'))
 REPORTS = {2023: 'Idol_immer._Report_23_CPCB.pdf', 2024: 'Ganesh_and_Durga_visarjan_report-2024.pdf', 2025: 'Ganesh_and_Durga_visarjan_report-2025.pdf'}
 PARAMETERS = {'pH', 'Dissolved oxygen', 'BOD'}
 PARAMETER_NAMES = {p.casefold(): p for p in PARAMETERS}

@@ -7,3 +7,5 @@ __pycache__/
 *.log
 .git/
 data/mp_immersion_sites_2023_2025.csv
+requirements.txt
+railway.json
