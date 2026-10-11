@@ -182,7 +182,8 @@ class Server(ThreadingHTTPServer):
 
 def already_serving():
     try:
-        with urllib.request.urlopen(f'http://{HOST}:{PORT}/api/health', timeout=1) as response:
+        connect_host = '127.0.0.1' if HOST in ('0.0.0.0', '') else HOST
+        with urllib.request.urlopen(f'http://{connect_host}:{PORT}/api/health', timeout=1) as response:
             return json.load(response).get('app') == 'visarjan-ghat-watch'
     except (OSError, ValueError):
         return False
