@@ -2,8 +2,8 @@
 
 **Track 2 · Claude Impact Lab × Cerebras Café Compute, Bhopal · 11 October 2026**
 
-> **Team name:** _TODO — add your team name_
-> **Members:** _TODO — add each member and what they worked on_
+> **Team name:** Track_Hawk
+> **Members:** Parth Dubey, Viraj Kaushik, Shaket Raj
 
 Three years of MPPCB water tests at Bhopal's idol-immersion ghats sit inside 90–120 page PDFs that nobody lines up against the legal limits. This turns them into a ranked, sourced list a Bhopal Municipal Corporation officer can act on before **Durga visarjan on 20 October 2026**.
 
